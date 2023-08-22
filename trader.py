@@ -16,10 +16,12 @@ def send_trade_request(trade_data):
 
 # Simulate trader sending a trade request
 trade_data = {
+    "oid":1,
     "asset_id": "asset1",
-    "quantity": 98.5,
-    "price":200,
-    "buy_signal": 0
+    "quantity":50,
+    "price":97.5,
+    "buy_signal": 0,
+    "request_no":3
 }
 
 send_trade_request(trade_data)
