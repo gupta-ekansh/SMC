@@ -134,18 +134,21 @@ def handle_client_request(client_socket , request_data , file_path , order_map ,
     response = ""
     # Checking if the oid is present in the map or not
     if request_no == 1:
-        # If oid not present in the map we update the map
-        order_map[oid] = {"asset_id": asset_id, "price": price, "quantity": quantity}
-        
-        # Executing the trade and sending the response to the trader
-        remaining_quantity = execute_trade(asset_id, quantity, price , file_path,buy_signal , order_books)
-        response = f"Trade executed. Remaining quantity: {remaining_quantity}"
-        
-        # Updating the remaining quantity in the map
-        if remaining_quantity == 0:
-            order_map[oid]["quantity"] = 0
+        if oid in order_map:
+            response = "More than one trade cannot be created with same orderId"
         else:
-            order_map[oid]["quantity"] = remaining_quantity
+            # If oid not present in the map we update the map
+            order_map[oid] = {"asset_id": asset_id, "price": price, "quantity": quantity}
+            
+            # Executing the trade and sending the response to the trader
+            remaining_quantity = execute_trade(asset_id, quantity, price , file_path,buy_signal , order_books)
+            response = f"Trade executed. Remaining quantity: {remaining_quantity}"
+            
+            # Updating the remaining quantity in the map
+            if remaining_quantity == 0:
+                order_map[oid]["quantity"] = 0
+            else:
+                order_map[oid]["quantity"] = remaining_quantity
         
     elif request_no == 2:
             
