@@ -60,12 +60,12 @@ def send_trade_request(trade_data):
 
 # Simulate trader sending a trade request
 trade_data = {
-    "oid":4,                # OrderId
+    "oid":1,                # OrderId
     "asset_id": "asset1",   # AssetId
-    "quantity":60,          # Quantity of the asset
-    "price":99,           # Price of the asset
-    "buy_signal": 0,        # 1 to buy 0 to sell
-    "request_no":1      # 1 for new , 2 for modify , 3 for cancel
+    "quantity":50,          # Quantity of the asset
+    "price":100,           # Price of the asset
+    "buy_signal":1,        # 1 to buy 0 to sell
+    "request_no":3     # 1 for new , 2 for modify , 3 for cancel
 }
 
 # Function to send data to server
