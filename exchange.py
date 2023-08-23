@@ -3,6 +3,25 @@ import socket
 import pickle
 import os
 from collections import OrderedDict
+from datetime import datetime
+from queue import Queue
+
+class respExcn:
+    def __init__(self , status , timestamp):
+        self.status = status
+        self.timestamp = timestamp
+        self.len = 2
+
+class tradeMessage:
+    def __init__(self , timestamp , fillPrice , fillQuantity , order_price , order_quantity , oid , counter_party_oid):
+        self.timestamp = timestamp
+        self.fillPrice = fillPrice
+        self.fillQuantity = fillQuantity
+        self.order_price = order_price
+        self.order_quantity = order_quantity
+        self.order_oid = oid
+        self.counter_party_oid = counter_party_oid
+        self.len = 5
 
 # Function to save order books to a file
 def save_order_books(order_books, filename):
@@ -17,36 +36,75 @@ def load_order_books(filename):
             return pickle.load(file)
 
 # Function to execute a trade based on buy/sell signal
-def execute_trade(asset_id , quantity , price , file_path, buy_signal , order_books):
+def execute_trade(order_map , order_queues , responses , asset_id , quantity , price , file_path, buy_signal , order_books , oid):
 
         # Check if asset exists in order_books and bid/ask sides
         if asset_id in order_books and "bid" in order_books[asset_id] or "ask" in order_books[asset_id]:
             if buy_signal:
                 ask_side = order_books[asset_id]["ask"]
                 bid_side = order_books[asset_id]["bid"]
+                original_quantity = quantity
                 remaining_quantity = quantity
                 
                 # Iterate through ask side ot execute trades
                 for ask_price, ask_quantity in list(ask_side.items()):
+                    org_ask_price = ask_price
+                    org_ask_quantity = ask_quantity
 
                     if remaining_quantity == 0:
                         break
 
-                    if ask_price <= price:
+                    if ask_price <= price: 
+
                         traded_quantity = min(ask_quantity, remaining_quantity)
                         remaining_quantity -= traded_quantity
                         ask_quantity -= traded_quantity
-
                         if ask_quantity == 0:
                             del ask_side[ask_price]
+                            counter_party_oid = order_queues["ask"][ask_price].queue[0]
+                            if traded_quantity >= order_map[counter_party_oid]["quantity"]:
+                                fill_quantity = order_map[counter_party_oid]["quantity"]
+                                order_map[counter_party_oid]["quantity"] = 0
+                            else:
+                                fill_quantity = traded_quantity
+                                order_map[counter_party_oid]["quantity"] -= traded_quantity
+                            trade_message_response = tradeMessage(datetime.now() , org_ask_price , fill_quantity , price , remaining_quantity , oid , counter_party_oid)
+                            responses.append(trade_message_response)  
+                            order_queues["ask"][ask_price].get() 
                         else:
                             ask_side[ask_price] = ask_quantity
 
+                        if order_queues["ask"][ask_price].qsize() > 0:
+                            counter_party_oid = order_queues["ask"][ask_price].queue[0]
+                            if traded_quantity >= order_map[counter_party_oid]["quantity"]:
+                                fill_quantity = order_map[counter_party_oid]["quantity"]
+                                order_map[counter_party_oid]["quantity"] = 0
+                            else:
+                                fill_quantity = traded_quantity
+                                order_map[counter_party_oid]["quantity"] -= traded_quantity
+                            trade_message_response = tradeMessage(datetime.now() , org_ask_price , fill_quantity , price , remaining_quantity , oid , counter_party_oid)
+                            responses.append(trade_message_response)  
+
+                    
+                    
+
                 # If remaining quantity , update bid side
                 if remaining_quantity > 0:
+                    print("Here")
                     if price not in bid_side:
                         bid_side[price] = 0
                     bid_side[price] += remaining_quantity
+                    if price in order_queues["bid"]:
+                            print("Inside")
+                            order_queues["bid"][price].put(oid)
+                            print(order_queues["bid"][price].queue[0])
+                            print(order_queues["bid"][price].qsize())
+                    else:
+                        order_queues["bid"][price] = Queue()
+                        order_queues["bid"][price].put(oid)
+                        print(order_queues["bid"][price].queue[0])
+                        print(order_queues["bid"][price].qsize())
+                
 
                 # Sort bid side
                 order_books[asset_id]["bid"] = dict(sorted(bid_side.items(), key=lambda item: item[0] ,reverse=True))
@@ -55,28 +113,72 @@ def execute_trade(asset_id , quantity , price , file_path, buy_signal , order_bo
                 bid_side = order_books[asset_id]["bid"]
                 ask_side = order_books[asset_id]["ask"]
                 remaining_quantity = quantity
+                original_quantity = quantity
 
                 # Iterate through the bid side to execute trades
                 for bid_price, bid_quantity in list(bid_side.items()):
-
+                    org_bid_price = bid_price
+                    org_bid_quantity = bid_quantity
+                    print("in for loop")
                     if remaining_quantity == 0:
                         break
 
                     if bid_price >= price:
+
                         traded_quantity = min(bid_quantity, remaining_quantity)
                         remaining_quantity -= traded_quantity
                         bid_quantity -= traded_quantity
 
                         if bid_quantity == 0:
                             del bid_side[bid_price]
+                            counter_party_oid = order_queues["bid"][bid_price].queue[0]
+                            if traded_quantity >= order_map[counter_party_oid]["quantity"]:
+                                fill_quantity = order_map[counter_party_oid]["quantity"]
+                                order_map[counter_party_oid]["quantity"] = 0
+                            else:
+                                fill_quantity = traded_quantity
+                                order_map[counter_party_oid]["quantity"] -= traded_quantity
+                            trade_message_response = tradeMessage(datetime.now() , org_bid_price , fill_quantity , price , original_quantity , oid , counter_party_oid)
+                            responses.append(trade_message_response)
+                            order_queues["bid"][bid_price].get()
                         else:
                             bid_side[bid_price] = bid_quantity
+                            # if bid_price in order_queues:
+                            #     order_queues[bid_price].put(oid)
+                            # else:
+                            #     order_queues[bid_price] = Queue()
+                            #     order_queues[bid_price].put(oid)
+
+                        if order_queues["bid"][bid_price].qsize() > 0:
+                            counter_party_oid = order_queues["bid"][bid_price].queue[0]
+                            print("Here")
+                            if traded_quantity >= order_map[counter_party_oid]["quantity"]:
+                                print("one")
+                                fill_quantity = order_map[counter_party_oid]["quantity"]
+                                order_map[counter_party_oid]["quantity"] = 0
+                            else:
+                                fill_quantity = traded_quantity
+                                print("ormp:", order_map[oid]["quantity"])
+                                order_map[counter_party_oid]["quantity"] -= traded_quantity
+                            
+                            trade_message_response = tradeMessage(datetime.now() , org_bid_price , fill_quantity , price , original_quantity , oid , counter_party_oid)
+                            responses.append(trade_message_response)
+
+
 
                 # If remaining quantity , update ask side
                 if remaining_quantity > 0:
+                    print("here in sell")
                     if price not in ask_side:
                         ask_side[price] = 0
                     ask_side[price] += remaining_quantity
+                    if price in order_queues:
+                            order_queues["ask"][price].put(oid)
+                    else:
+                        order_queues["ask"][price] = Queue()
+                        order_queues["ask"][price].put(oid)
+                
+                
 
                 # Sort ask side and update order_books
                 order_books[asset_id]["ask"] = dict(sorted(ask_side.items(), key=lambda item: item[0]))
@@ -118,7 +220,9 @@ def modify_order(order_map , oid , new_quantity , order_books , buy_signal):
 
 
 # Function to handle client request
-def handle_client_request(client_socket , request_data , file_path , order_map , order_books):
+def handle_client_request(client_socket , request_data , file_path , order_map , order_books, order_queues):
+    responses = []
+
     # print("In handle_client_request")
     oid = request_data["oid"]
     asset_id = request_data["asset_id"]
@@ -134,15 +238,15 @@ def handle_client_request(client_socket , request_data , file_path , order_map ,
     response = ""
     # Checking if the oid is present in the map or not
     if request_no == 1:
-        if oid in order_map:
-            response = "More than one trade cannot be created with same orderId"
+        if oid in order_map or asset_id not in order_books:
+            res = respExcn(1501 , datetime.now())
+            responses.append(res)
         else:
+            res = respExcn(1500 , datetime.now())
+            responses.append(res)
             # If oid not present in the map we update the map
             order_map[oid] = {"asset_id": asset_id, "price": price, "quantity": quantity}
-            
-            # Executing the trade and sending the response to the trader
-            remaining_quantity = execute_trade(asset_id, quantity, price , file_path,buy_signal , order_books)
-            response = f"Trade executed. Remaining quantity: {remaining_quantity}"
+            remaining_quantity = execute_trade(order_map , order_queues , responses , asset_id, quantity, price , file_path,buy_signal , order_books , oid)
             
             # Updating the remaining quantity in the map
             if remaining_quantity == 0:
@@ -152,15 +256,14 @@ def handle_client_request(client_socket , request_data , file_path , order_map ,
         
     elif request_no == 2:
             
-            if oid not in order_map:
-                response = "Trade cannot be modified until it has been created"
-            
-            # If the trade had been completed before we reject the modification request
-            elif(order_map[oid]["quantity"] == 0):
-                response = "Trade Modification Rejected because trade has been already completed"
+            if oid not in order_map or asset_id not in order_books or order_map[oid]["quantity"] == 0:
+                res = respExcn(1503 , datetime.now())
+                responses.append(res)
 
             else:
                 # Getting the new_quantity and the new_price from the request data
+                res = respExcn(1502 , datetime.now())
+                responses.append(res)
                 new_quantity = request_data.get("quantity")
                 new_price = request_data.get("price")
 
@@ -171,13 +274,15 @@ def handle_client_request(client_socket , request_data , file_path , order_map ,
                         if order_books.get(order_books[asset_id]["bid"][order_map[oid]["price"]]) is not None:
                             del order_books[asset_id]["bid"][order_map[oid]["price"]]
                         else:
-                            reponse = "Trade Modification Rejected"
+                            res = respExcn(1503 , datetime.now())
+                            responses.append(res)
 
                     else:
                         if order_books.get(order_books[asset_id]["ask"][order_map[oid]["price"]]) is not None:
                             del order_books[asset_id]["bid"][order_map[oid]["ask"]]
                         else:
-                            response = "Trade Modification Rejected"
+                            res = respExcn(1503 , datetime.now())
+                            responses.append(res)
 
                     # Deciding the side based on buy_signal
                     side = "bid" if buy_signal == 1 else "ask"
@@ -189,41 +294,46 @@ def handle_client_request(client_socket , request_data , file_path , order_map ,
 
                     # Executing a normal trade
                     remaining_quantity = execute_trade(asset_id , quantity , price , file_path, buy_signal , order_books)
-                    response = f"Trade executed here. Remaining quantity: {new_quantity}"
+
 
                 # Modifying the quantity
                 elif new_quantity is not None:
                     remaining_quantity = modify_order(order_map, oid, new_quantity, order_books , buy_signal)
-                    response = f"Trade executed. Remaining quantity: {remaining_quantity}"
+
 
                 order_map[oid] = {"asset_id": asset_id, "price": price, "quantity": quantity}
             
-            # Sorting the order_books
-            order_books[asset_id]["bid"] = dict(sorted(order_books[asset_id]["bid"].items(), key=lambda item: item[0] ,reverse=True))
-            order_books[asset_id]["ask"] = dict(sorted(order_books[asset_id]["ask"].items(), key=lambda item: item[0]))
+                # Sorting the order_books
+                order_books[asset_id]["bid"] = dict(sorted(order_books[asset_id]["bid"].items(), key=lambda item: item[0] ,reverse=True))
+                order_books[asset_id]["ask"] = dict(sorted(order_books[asset_id]["ask"].items(), key=lambda item: item[0]))
 
-            # Saving the order_books
-            save_order_books(order_books , file_path)
+                # Saving the order_books
+                save_order_books(order_books , file_path)
     
     # Handling the cancellation request
     elif request_no == 3:
 
         # Checking id the oid is present in order_map or not
         if oid not in order_map:
-            response = "Trade cannot be deleted until it has been created."
+
+            res = respExcn(1505 , datetime.now())
+            responses.append(res)
 
         # If the order id is present then delete from order_boooks and order_map  
         else:
             side = "bid" if buy_signal == 1 else "ask"
             del order_books[asset_id][side][order_map[oid]["price"]]
             del order_map[oid]
-            response = "Trade executed successfully."
+
+            res = respExcn(1504 , datetime.now())
+            responses.append(res)
 
     # Printing the order_map and order_book after the request
     print("OrderBookAfter:" , order_books)
     print("Order_map After:" ,order_map)
 
-    client_socket.sendall(response.encode())
+    responses = pickle.dumps(responses)
+    client_socket.sendall(responses)
 
 # Configure server settings
 # HOST = '192.168.15.237'  # Listen on all available interfaces
@@ -245,6 +355,13 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
 
     # Declaring order_map
     order_map = {}
+    # order_map = {1: {'asset_id': 'asset1', 'price': 100, 'quantity': 50}, 2: {'asset_id': 'asset1', 'price': 99, 'quantity': 50}}
+    bid_side = {}
+    ask_side = {}
+    order_queues = {
+        "bid":bid_side,
+        "ask":ask_side
+    }
 
     # Enabling the server to listen even when one trader has closed the request
     while True: 
@@ -254,12 +371,13 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
 
             # Connection Established
             print(f"Connected by: {addr}")
-            while True:
-                data = conn.recv(1024)
-                if not data:
-                    break
+            # while True:
+            data = conn.recv(1024)
+            if not data:
+                break
 
-                request_data = pickle.loads(data)
-                order_books = load_order_books(file_path)
-                print("Request Data:", request_data)
-                handle_client_request(conn , request_data , file_path , order_map , order_books)
+            request_data = pickle.loads(data)
+            order_books = load_order_books(file_path)
+            # order_books = {'asset1': {'bid': {}, 'ask': {99: 50, 100: 50}}}
+            print("Request Data:", request_data)
+            handle_client_request(conn , request_data , file_path , order_map , order_books , order_queues)
