@@ -129,7 +129,7 @@ def execute_trade(order_map , order_queues , responses , asset_id , quantity , p
                             counter_party_oid = order_queues["bid"][bid_price].queue[0]
                             if traded_quantity >= order_map[counter_party_oid]["quantity"]:
                                 fill_quantity = order_map[counter_party_oid]["quantity"]
-                                order_map[counter_party_oid]["quantity"] = 0
+                                # order_map[counter_party_oid] = 0
                             else:
                                 fill_quantity = traded_quantity
                                 order_map[counter_party_oid]["quantity"] -= traded_quantity
@@ -150,7 +150,7 @@ def execute_trade(order_map , order_queues , responses , asset_id , quantity , p
                             counter_party_oid = order_queues["bid"][bid_price].queue[0]
                             if traded_quantity >= order_map[counter_party_oid]["quantity"]:
                                 fill_quantity = order_map[counter_party_oid]["quantity"]
-                                order_map[counter_party_oid]["quantity"] = 0
+                                del order_map[counter_party_oid]
                             else:
                                 fill_quantity = traded_quantity
                                 print("ormp:", order_map[oid]["quantity"])
