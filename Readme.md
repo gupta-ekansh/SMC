@@ -2,24 +2,6 @@
 
 This documentation provides an overview of the components, functionality, and usage instructions for the exchange system implemented in the provided Python code.
 
-## Table of Contents
-
-1. [Introduction](#introduction)
-2. [Components](#components)
-   - [Exchange Server](#exchange-server)
-   - [Trader Interface](#trader-interface)
-   - [Order Book Initialization](#order-book-initialization)
-3. [Usage](#usage)
-   - [Running the Exchange Server](#running-the-exchange-server)
-   - [Using the Trader Interface](#using-the-trader-interface)
-4. [Code Explanation](#code-explanation)
-   - [Exchange Server](#exchange-server-code-explanation)
-   - [Trader Interface](#trader-interface-code-explanation)
-   - [Order Book Initialization](#order-book-initialization-code-explanation)
-5. [Dependencies](#dependencies)
-6. [Contributors](#contributors)
-7. [License](#license)
-
 ## 1. Introduction
 
 The provided Python code implements a simplified exchange system consisting of an exchange server, a trader interface, and order book initialization. Traders can use the trader interface to submit trade requests to the exchange server. The exchange server handles trade execution, maintains order books, and provides responses to traders.
